@@ -28,10 +28,13 @@ const api = new Fetcher("http://localhost:4000/auth");
 
 export const getLoggedIn = () => api.get(`/loggedIn/`);
 export const loginUser = (email, password) => {
-    return api.post(`/login/`, {
+    const res = api.post(`/login/`, {
         email : email,
         password : password
     })
+    console.log("LOOK HERE:")
+    console.log(res);
+    return res;
 }
 export const logoutUser = () => api.get(`/logout/`)
 export const registerUser = (firstName, lastName, email, password, passwordVerify) => {

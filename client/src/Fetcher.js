@@ -12,35 +12,38 @@ class Fetcher {
         const fetchOptions = {
             credentials: "include",
             ...options,
-            headers: { ...defaultHeaders, ...(options.headers || {}) }
+            headers: { ...defaultHeaders, ...(options.headers || {}) } 
         };
 
         const res = await fetch(this.baseURL + endpoint, fetchOptions);
         const text = await res.text();
         // console.log(text);
-        if (!res.ok) {
+        if (!res.ok) {// handle errors
             let errorData;
             try {
                 errorData = JSON.parse(text);
             } catch {
                 errorData = { message: text };
             }
-            const err = new Error(errorData.message || `HTTP ${res.status}`);
+            const err = new Error(`HTTP ${res.status}`);
             err.status = res.status;
             err.data = errorData;
             throw err;
         }
 
-        if (!text) return null;
-        try {
-            const data =  JSON.parse(text);
+        if (!text){  // empty case
             const resp = {
-                data: data,
+                status: res.status,
+                headers: res.headers,
             }
             return resp;
-        } catch {
-            return text;
         }
+        const resp = {
+            data: JSON.parse(text),
+            status: res.status,
+            headers: res.headers,
+        }
+        return resp;
     }
 
     get(endpoint) {
