@@ -1,5 +1,5 @@
-const Playlist = require('../models/playlist-model')
-const User = require('../models/user-model');
+const Playlist = require('../models/mongodb/playlist-model')
+const User = require('../models/mongodb/user-model');
 const auth = require('../auth')
 /*
     This is our back-end API. It provides all the data services
