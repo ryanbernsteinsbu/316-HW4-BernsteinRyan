@@ -1,0 +1,39 @@
+class DatabaseManager{
+    constructor(connection, UserModel, PlaylistModel){
+        this.connection = connection;
+        this.UserModel = UserModel;
+        this.PlaylistModel = PlaylistModel;
+    }
+    createPlaylist(body, userId){
+        return body;
+    }
+    deletePlaylist(id){
+        return false;
+    }
+    replacePlaylist(id, body){
+        return body;
+    }
+    getPlaylistPairs(email){
+        return null;
+    }
+    getPlaylist(id){
+        return null;
+    }
+    getPlaylists(){
+        return null;
+    }
+    createUser(body){
+        return null;
+    }
+    getUser(id){
+        return null;
+    }
+    findUser(email){
+        return null;
+    }
+    asyncFindUser(list){
+        return 
+    }
+}
+
+module.exports = DatabaseManager;

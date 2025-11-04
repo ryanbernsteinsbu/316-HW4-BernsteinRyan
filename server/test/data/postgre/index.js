@@ -2,14 +2,14 @@ const dotenv = require('dotenv');
 dotenv.config();
 const { sequelize } = require('../../../db/postgresql');
 
-// function getID(){
-//     out = [...Array(24)];//create empty 24 long Array
-//     out.map(() => Math.floor(Math.random() * 16).toString(16)); //fill with random hex
-//     return out.join("");//join and return
-// }
+function getID(){
+    out = [...Array(24)].map(() => Math.floor(Math.random() * 16).toString(16)); //fill with random hex
+    return out.join("");//join and return
+}
 async function createUsers(data, Model) {
     for (const user of data) { //testData.users
         const newUser = await Model.create({
+            _id: getID(),
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,

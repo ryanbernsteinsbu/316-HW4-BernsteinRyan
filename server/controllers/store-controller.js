@@ -1,5 +1,4 @@
-const Playlist = require('../models/mongodb/playlist-model')
-const User = require('../models/mongodb/user-model');
+const dbm = require('../db/index.js')
 const auth = require('../auth')
 /*
     This is our back-end API. It provides all the data services
@@ -8,7 +7,7 @@ const auth = require('../auth')
     
     @author McKilla Gorilla
 */
-createPlaylist = (req, res) => {
+createPlaylist = async (req, res) => {
     if(auth.verifyUser(req) === null){
         return res.status(400).json({
             errorMessage: 'UNAUTHORIZED'
@@ -23,32 +22,17 @@ createPlaylist = (req, res) => {
         })
     }
     
-    const playlist = new Playlist(body);
-    console.log("playlist: " + playlist.toString());
-    if (!playlist) {
-        return res.status(400).json({ success: false, error: err })
+    try {
+        const newPlaylist = await dbm.createPlaylist(body, req.userId);
+        if (newPlaylist) {
+            return res.status(201).json({ playlist: newPlaylist });
+        } else {
+            return res.status(400).json({ errorMessage: 'Playlist Not Created!' });
+        }
+    } catch (err) {
+        console.error("createPlaylist error:", err);
+        return res.status(500).json({ errorMessage: 'Internal server error' });
     }
-
-    User.findOne({ _id: req.userId }, (err, user) => {
-        console.log("user found: " + JSON.stringify(user));
-        user.playlists.push(playlist._id);
-        user
-            .save()
-            .then(() => {
-                playlist
-                    .save()
-                    .then(() => {
-                        return res.status(201).json({
-                            playlist: playlist
-                        })
-                    })
-                    .catch(error => {
-                        return res.status(400).json({
-                            errorMessage: 'Playlist Not Created!'
-                        })
-                    })
-            });
-    })
 }
 deletePlaylist = async (req, res) => {
     if(auth.verifyUser(req) === null){
@@ -58,35 +42,41 @@ deletePlaylist = async (req, res) => {
     }
     console.log("delete Playlist with id: " + JSON.stringify(req.params.id));
     console.log("delete " + req.params.id);
-    Playlist.findById({ _id: req.params.id }, (err, playlist) => {
-        console.log("playlist found: " + JSON.stringify(playlist));
-        if (err) {
+    try{
+        const playlist = await dbm.getPlaylist(req.params.id);
+        if(!playlist){
             return res.status(404).json({
                 errorMessage: 'Playlist not found!',
             })
         }
 
-        // DOES THIS LIST BELONG TO THIS USER?
-        async function asyncFindUser(list) {
-            User.findOne({ email: list.ownerEmail }, (err, user) => {
-                console.log("user._id: " + user._id);
-                console.log("req.userId: " + req.userId);
-                if (user._id == req.userId) {
-                    console.log("correct user!");
-                    Playlist.findOneAndDelete({ _id: req.params.id }, () => {
-                        return res.status(200).json({});
-                    }).catch(err => console.log(err))
-                }
-                else {
-                    console.log("incorrect user!");
-                    return res.status(400).json({ 
-                        errorMessage: "authentication error" 
-                    });
-                }
+        const user = dbm.asyncFindUser(playlist); //get user
+        if(!user){
+            return res.status(404).json({
+                errorMessage: 'User not found!',
+            })
+        }
+
+        if (user._id == req.userId) { //verify user
+            console.log("correct user!");
+            const deleted = await dbm.deletePlaylist(playlist._id);
+            if(deleted){ //detete playlist
+                return res.status(200).json({});
+            } else {
+                return res.status(400).json({ 
+                    errorMessage: "delete error" 
+                });
+            }
+        } else {
+            console.log("incorrect user!");
+            return res.status(400).json({ 
+                errorMessage: "authentication error" 
             });
         }
-        asyncFindUser(playlist);
-    })
+    } catch(err) {
+                console.error("deletePlaylist error:", err);
+        return res.status(500).json({ errorMessage: 'Internal server error' });
+    }
 }
 getPlaylistById = async (req, res) => {
     if(auth.verifyUser(req) === null){
@@ -94,31 +84,32 @@ getPlaylistById = async (req, res) => {
             errorMessage: 'UNAUTHORIZED'
         })
     }
-    console.log("Find Playlist with id: " + JSON.stringify(req.params.id));
-
-    await Playlist.findById({ _id: req.params.id }, (err, list) => {
-        if (err) {
+    try {
+        console.log("Find Playlist with id: " + JSON.stringify(req.params.id));
+        const list = await dbm.getPlaylist(req.params.id);
+        if (!list) {
             return res.status(400).json({ success: false, error: err });
         }
         console.log("Found list: " + JSON.stringify(list));
 
-        // DOES THIS LIST BELONG TO THIS USER?
-        async function asyncFindUser(list) {
-            await User.findOne({ email: list.ownerEmail }, (err, user) => {
-                console.log("user._id: " + user._id);
-                console.log("req.userId: " + req.userId);
-                if (user._id == req.userId) {
-                    console.log("correct user!");
-                    return res.status(200).json({ success: true, playlist: list })
-                }
-                else {
-                    console.log("incorrect user!");
-                    return res.status(400).json({ success: false, description: "authentication error" });
-                }
-            });
+        const user = await dbm.asyncFindUser(list); //get user
+        if(!user){
+            return res.status(404).json({
+                errorMessage: 'User not found!',
+            })
         }
-        asyncFindUser(list);
-    }).catch(err => console.log(err))
+
+        if (user._id == req.userId) { //verify user
+            console.log("correct user!");
+            return res.status(200).json({ success: true, playlist: list })
+        } else {
+            console.log("incorrect user!");
+            return res.status(400).json({ success: false, description: "authentication error" });
+        }
+    } catch(err) {
+        console.error("getPlaylistById error:", err);
+        return res.status(500).json({ errorMessage: 'Internal server error' });
+    }
 }
 getPlaylistPairs = async (req, res) => {
     if(auth.verifyUser(req) === null){
@@ -126,40 +117,26 @@ getPlaylistPairs = async (req, res) => {
             errorMessage: 'UNAUTHORIZED'
         })
     }
-    console.log("getPlaylistPairs");
-    await User.findOne({ _id: req.userId }, (err, user) => {
-        console.log("find user with id " + req.userId);
-        async function asyncFindList(email) {
-            console.log("find all Playlists owned by " + email);
-            await Playlist.find({ ownerEmail: email }, (err, playlists) => {
-                console.log("found Playlists: " + JSON.stringify(playlists));
-                if (err) {
-                    return res.status(400).json({ success: false, error: err })
-                }
-                if (!playlists) {
-                    console.log("!playlists.length");
-                    return res
-                        .status(404)
-                        .json({ success: false, error: 'Playlists not found' })
-                }
-                else {
-                    console.log("Send the Playlist pairs");
-                    // PUT ALL THE LISTS INTO ID, NAME PAIRS
-                    let pairs = [];
-                    for (let key in playlists) {
-                        let list = playlists[key];
-                        let pair = {
-                            _id: list._id,
-                            name: list.name
-                        };
-                        pairs.push(pair);
-                    }
-                    return res.status(200).json({ success: true, idNamePairs: pairs })
-                }
-            }).catch(err => console.log(err))
+    try {
+        console.log("getPlaylistPairs");
+        const user = await dbm.getUser(req.userId);
+        if(!user){
+            return res.status(404).json({
+                errorMessage: 'User not found!',
+            })
         }
-        asyncFindList(user.email);
-    }).catch(err => console.log(err))
+        const playlistPairs = await dbm.getPlaylistPairs(user.email);
+        if(playlistPairs){
+            return res.status(200).json({ success: true, idNamePairs: playlistPairs})
+        } else {
+            return res
+                .status(404)
+                .json({success:false, error: "Playlists not found"})
+        }
+    } catch(err) {
+        console.error("getPlaylistPairs error:", err);
+        return res.status(500).json({ errorMessage: 'Internal server error' });
+    }
 }
 getPlaylists = async (req, res) => {
     if(auth.verifyUser(req) === null){
@@ -167,17 +144,17 @@ getPlaylists = async (req, res) => {
             errorMessage: 'UNAUTHORIZED'
         })
     }
-    await Playlist.find({}, (err, playlists) => {
-        if (err) {
+    try{
+        const playlists = await dbm.getPlaylists()
+        if(!playlists){
             return res.status(400).json({ success: false, error: err })
+        } else {
+            return res.status(200).json({ success: true, data: playlists })
         }
-        if (!playlists.length) {
-            return res
-                .status(404)
-                .json({ success: false, error: `Playlists not found` })
-        }
-        return res.status(200).json({ success: true, data: playlists })
-    }).catch(err => console.log(err))
+    } catch(err) {
+        console.error("getPlaylists error:", err);
+        return res.status(500).json({ errorMessage: 'Internal server error' });
+    }
 }
 updatePlaylist = async (req, res) => {
     if(auth.verifyUser(req) === null){
@@ -185,63 +162,55 @@ updatePlaylist = async (req, res) => {
             errorMessage: 'UNAUTHORIZED'
         })
     }
-    const body = req.body
-    console.log("updatePlaylist: " + JSON.stringify(body));
-    console.log("req.body.name: " + req.body.name);
-
-    if (!body) {
-        return res.status(400).json({
-            success: false,
-            error: 'You must provide a body to update',
-        })
-    }
-
-    Playlist.findOne({ _id: req.params.id }, (err, playlist) => {
-        console.log("playlist found: " + JSON.stringify(playlist));
-        if (err) {
-            return res.status(404).json({
-                err,
-                message: 'Playlist not found!',
+    try{
+        const body = req.body
+        console.log("updatePlaylist: " + JSON.stringify(body));
+        console.log("req.body.name: " + req.body.name);
+        if (!body) {
+            return res.status(400).json({
+                success: false,
+                error: 'You must provide a body to update',
             })
         }
 
-        // DOES THIS LIST BELONG TO THIS USER?
-        async function asyncFindUser(list) {
-            await User.findOne({ email: list.ownerEmail }, (err, user) => {
-                console.log("user._id: " + user._id);
-                console.log("req.userId: " + req.userId);
-                if (user._id == req.userId) {
-                    console.log("correct user!");
-                    console.log("req.body.name: " + req.body.name);
-
-                    list.name = body.playlist.name;
-                    list.songs = body.playlist.songs;
-                    list
-                        .save()
-                        .then(() => {
-                            console.log("SUCCESS!!!");
-                            return res.status(200).json({
-                                success: true,
-                                id: list._id,
-                                message: 'Playlist updated!',
-                            })
-                        })
-                        .catch(error => {
-                            console.log("FAILURE: " + JSON.stringify(error));
-                            return res.status(404).json({
-                                error,
-                                message: 'Playlist not updated!',
-                            })
-                        })
-                }
-                else {
-                    console.log("incorrect user!");
-                    return res.status(400).json({ success: false, description: "authentication error" });
-                }
-            });
+        const list = await dbm.getPlaylist(req.params.id);
+        if(!list){
+            return res.status(404).json({
+                errorMessage: 'Playlist not found!',
+            })
         }
-        asyncFindUser(playlist);
-    })
+
+        const user = await dbm.asyncFindUser(list); //get user
+        if(!user){
+            return res.status(404).json({
+                errorMessage: 'User not found!',
+            })
+        }
+
+        if (user._id != req.userId) { //verify user
+            console.log("incorrect user!");
+            return res.status(400).json({ success: false, description: "authentication error" });
+        } else {
+            console.log("correct user!");
+            const updated = await dbm.replacePlaylist(list._id, req.body);
+            if(updated){
+                return res.status(200).json({
+                    success: true,
+                    id: list._id,
+                    message: 'Playlist updated!',
+                });
+            } else {
+                return res.status(400).json({
+                    success: false,
+                    id: list._id,
+                    message: 'Playlist failed to update',
+                });
+            }
+        }
+    } catch(err){
+        console.error("updatePlaylist error:", err);
+        return res.status(500).json({ errorMessage: 'Internal server error' });
+    }
 }
 module.exports = {
     createPlaylist,
