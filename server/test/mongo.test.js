@@ -25,6 +25,7 @@ afterEach(() => {
  */
 afterAll( () => {
     //I gotta restart the database every time, JIC
+    console.log("run startup script");
 });
 
 let createdUser = null;
@@ -33,18 +34,17 @@ test('Test #1) Create User', async () => {
     const testUser = {
         firstName: 'Test',
         lastName: 'User',
-        email: 'testuser@example.com',
-        passwordHash: 'hashedPassword123',
+        email: 'abc@ab.com',
+        passwordHash: 'asdfbajsdkfadfbshijdfnbwrf',
     };
 
     createdUser = await dbm.createUser(testUser);
-    expect(createdUser).not.toBeNull();
+    //expect structure not working use this
     expect(createdUser.email).toBe(testUser.email);
 });
 
 test('Test #2) Read User', async () => {
-    const user = await dbm.findUser('testuser@example.com');
-    expect(user).not.toBeNull();
+    const user = await dbm.findUser('abc@ab.com');
     expect(user.firstName).toBe('Test');
 });
 
@@ -53,17 +53,15 @@ test('Test #3) Create Playlist', async () => {
         _id:'123456789012345678901234',
         name: 'Test Playlist',
         songs: [],
-        ownerEmail: 'testuser@example.com'
+        ownerEmail: 'abc@ab.com'
     };
 
     createdPlaylist = await dbm.createPlaylist(testPlaylist, createdUser._id);
-    expect(createdPlaylist).not.toBeNull();
     expect(createdPlaylist.name).toBe('Test Playlist');
 });
 
 test('Test #4) Read Playlist', async () => {
     const playlist = await dbm.getPlaylist(createdPlaylist._id);
-    expect(playlist).not.toBeNull();
     expect(playlist.name).toBe('Test Playlist');
 });
 
